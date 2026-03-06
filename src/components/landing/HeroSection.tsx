@@ -92,7 +92,7 @@ export default function HeroSection() {
             videoLoaded ? "opacity-100" : "opacity-0"
           }`}
         >
-          <source src="/videos/promo-wide.mp4" type="video/mp4" />
+          <source src="/videos/hero-video.mp4" type="video/mp4" />
         </video>
       </motion.div>
 
