@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface ChatMessage {
@@ -17,6 +17,89 @@ function getVisitorId() {
     localStorage.setItem("elated_visitor_id", id);
   }
   return id;
+}
+
+// Lightweight markdown renderer for chat messages
+function renderMarkdown(text: string): React.ReactNode[] {
+  const lines = text.split("\n");
+  const elements: React.ReactNode[] = [];
+
+  lines.forEach((line, i) => {
+    if (i > 0) elements.push(<br key={`br-${i}`} />);
+
+    // Numbered list items: "1. **text**" or "1. text"
+    const listMatch = line.match(/^(\d+)\.\s+(.*)$/);
+    if (listMatch) {
+      elements.push(
+        <span key={`li-${i}`} className="block pl-1 mt-1">
+          <span className="text-gold-400 font-medium mr-1">{listMatch[1]}.</span>
+          {renderInline(listMatch[2])}
+        </span>
+      );
+      return;
+    }
+
+    // Bullet list items
+    const bulletMatch = line.match(/^[-*]\s+(.*)$/);
+    if (bulletMatch) {
+      elements.push(
+        <span key={`bl-${i}`} className="block pl-1 mt-1">
+          <span className="text-gold-400 mr-1">•</span>
+          {renderInline(bulletMatch[1])}
+        </span>
+      );
+      return;
+    }
+
+    elements.push(<span key={`ln-${i}`}>{renderInline(line)}</span>);
+  });
+
+  return elements;
+}
+
+// Render inline markdown: **bold**, [links](/url)
+function renderInline(text: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  // Match **bold**, [text](url), or plain text
+  const regex = /(\*\*(.+?)\*\*|\[([^\]]+)\]\(([^)]+)\))/g;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    // Text before this match
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+
+    if (match[2]) {
+      // **bold**
+      parts.push(
+        <strong key={`b-${match.index}`} className="font-semibold text-white">
+          {match[2]}
+        </strong>
+      );
+    } else if (match[3] && match[4]) {
+      // [text](url)
+      parts.push(
+        <a
+          key={`a-${match.index}`}
+          href={match[4]}
+          className="text-gold-400 underline underline-offset-2 hover:text-gold-300 transition-colors"
+        >
+          {match[3]}
+        </a>
+      );
+    }
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Remaining text
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts;
 }
 
 const WELCOME_MESSAGE: ChatMessage = {
@@ -280,7 +363,7 @@ export default function ChatWidget() {
                           : "bg-white/5 text-white/80"
                       }`}
                     >
-                      {m.text}
+                      {m.role === "assistant" ? renderMarkdown(m.text) : m.text}
                     </div>
                   </div>
                 ))}
