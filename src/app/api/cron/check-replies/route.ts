@@ -4,7 +4,7 @@ import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
 import { generateReplyEmail } from "@/lib/reply-generator";
 
-export const maxDuration = 120;
+export const maxDuration = 60;
 
 const DAILY_AUTO_REPLY_LIMIT = 50;
 const MAX_REPLIES_PER_PROSPECT = 7;
@@ -49,10 +49,14 @@ export async function GET(req: NextRequest) {
       pass: imapPass,
     },
     logger: false,
+    greetingTimeout: 10000,
+    socketTimeout: 30000,
   });
 
   try {
+    console.log("Check-replies: connecting to IMAP...");
     await client.connect();
+    console.log("Check-replies: connected successfully");
 
     // Open INBOX
     const lock = await client.getMailboxLock("INBOX");
@@ -69,7 +73,15 @@ export async function GET(req: NextRequest) {
         }
       );
 
+      const MAX_MESSAGES_PER_RUN = 5;
+      let messageCount = 0;
+
       for await (const msg of messages) {
+        if (messageCount >= MAX_MESSAGES_PER_RUN) {
+          console.log("Check-replies: max messages per run reached, will continue next cycle");
+          break;
+        }
+        messageCount++;
         try {
           const envelope = msg.envelope;
           if (!envelope?.from?.[0]?.address) {
