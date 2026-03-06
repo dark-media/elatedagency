@@ -17,16 +17,16 @@ const fadeUp = {
 
 const team = [
   {
-    name: "Natalie Weiss",
+    name: "Gary Anderson",
     role: "CEO & Founder",
-    image: "/images/elated_agency_3.jpeg",
-    bio: "With over a decade of experience in talent management and digital media, Natalie founded Elated Agency with a vision to democratize premium management for OnlyFans creators at every level. She has helped over 500 creators optimize their content strategy and grow sustainable revenue streams, combining a personal touch with cutting-edge AI technology.",
+    image: "/images/gary-headshot-fixed.jpeg",
+    bio: "Gary founded Elated Agency with a vision to revolutionize OnlyFans management through AI. With a background in machine learning and platform engineering, he architected the proprietary systems that power Elated's 24/7 creator management — enabling personalized, round-the-clock support for over 500 creators at a fraction of the cost of traditional agencies.",
   },
   {
-    name: "Gary Anderson",
-    role: "CTO & Co-Founder",
-    image: "/images/elated_agency_11.jpeg",
-    bio: "Gary leads the technology vision at Elated Agency, architecting the AI systems that power our 24/7 creator management platform. With a background in machine learning and platform engineering, he built the proprietary tools that enable Elated to deliver personalized, round-the-clock support to over 500 creators — at a fraction of the cost of traditional agencies.",
+    name: "Natalie Weiss",
+    role: "Chief Client Officer",
+    image: "/images/elated_agency_3.jpeg",
+    bio: "Natalie is the heart of Elated's creator relationships. With over a decade of experience in talent management and digital media, she oversees all client communications and ensures every creator receives a personal, hands-on experience. She has helped over 500 creators optimize their content strategy and grow sustainable revenue streams.",
   },
   {
     name: "Team Elated",
