@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
 import { generateOutreachEmail } from "@/lib/outreach-generator";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const DAILY_OUTREACH_LIMIT = 20;
 

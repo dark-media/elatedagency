@@ -3,7 +3,7 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { generateText } from "ai";
 import prisma from "@/lib/prisma";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 function verifyAuth(req: NextRequest): boolean {
   const auth = req.headers.get("authorization");
