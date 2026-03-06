@@ -121,7 +121,7 @@ const jsonLd = {
   },
   sameAs: [
     "https://instagram.com/elatedagency",
-    "https://twitter.com/elatedagency",
+    "https://x.com/elated_agency",
     "https://tiktok.com/@elatedagency",
   ],
   contactPoint: {

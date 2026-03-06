@@ -35,7 +35,7 @@ const socialLinks = [
     ),
   },
   {
-    href: "https://twitter.com/elatedagency",
+    href: "https://x.com/elated_agency",
     label: "Twitter",
     icon: (
       <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
