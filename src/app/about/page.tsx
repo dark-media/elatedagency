@@ -23,6 +23,12 @@ const team = [
     bio: "With over a decade of experience in talent management and digital media, Natalie founded Elated Agency with a vision to democratize premium management for OnlyFans creators at every level. She has helped over 500 creators optimize their content strategy and grow sustainable revenue streams, combining a personal touch with cutting-edge AI technology.",
   },
   {
+    name: "Gary Anderson",
+    role: "CTO & Co-Founder",
+    image: "/images/elated_agency_11.jpeg",
+    bio: "Gary leads the technology vision at Elated Agency, architecting the AI systems that power our 24/7 creator management platform. With a background in machine learning and platform engineering, he built the proprietary tools that enable Elated to deliver personalized, round-the-clock support to over 500 creators — at a fraction of the cost of traditional agencies.",
+  },
+  {
     name: "Team Elated",
     role: "Creator Success Team",
     image: "/images/elated_agency_14.jpeg",
