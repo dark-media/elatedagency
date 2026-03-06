@@ -84,6 +84,18 @@ export async function POST(request: Request) {
       `,
     });
 
+    // Start welcome email sequence
+    try {
+      await prisma.emailSequenceState.create({
+        data: {
+          email: email.toLowerCase(),
+          campaignType: "welcome",
+        },
+      });
+    } catch {
+      // Sequence may already exist
+    }
+
     return NextResponse.json(
       {
         id: subscriber.id,

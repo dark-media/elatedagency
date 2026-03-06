@@ -71,10 +71,21 @@ export default function Footer() {
   const [email, setEmail] = useState("");
   const [subscribed, setSubscribed] = useState(false);
 
-  const handleNewsletterSubmit = (e: React.FormEvent) => {
+  const handleNewsletterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email) {
-      // Newsletter submission would be handled by an API route
+    if (!email) return;
+    try {
+      const res = await fetch("/api/newsletter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (res.ok || res.status === 409) {
+        setSubscribed(true);
+        setEmail("");
+        setTimeout(() => setSubscribed(false), 4000);
+      }
+    } catch {
       setSubscribed(true);
       setEmail("");
       setTimeout(() => setSubscribed(false), 4000);

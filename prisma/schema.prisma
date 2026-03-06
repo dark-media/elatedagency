@@ -136,19 +136,22 @@ model Session {
 }
 
 model BlogPost {
-  id          String   @id @default(cuid())
-  title       String
-  slug        String   @unique
-  excerpt     String?
-  content     String
-  coverImage  String?
-  author      String   @default("Elated Agency")
-  category    String?
-  tags        String?
-  published   Boolean  @default(false)
-  publishedAt DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String       @id @default(cuid())
+  title           String
+  slug            String       @unique
+  excerpt         String?
+  content         String
+  coverImage      String?
+  author          String       @default("Elated Agency")
+  category        String?
+  tags            String?
+  published       Boolean      @default(false)
+  publishedAt     DateTime?
+  metaTitle       String?
+  metaDescription String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  contentPlan     ContentPlan?
 }
 
 model EmailSubscriber {
@@ -167,4 +170,124 @@ model ContactSubmission {
   message   String
   status    String   @default("new")
   createdAt DateTime @default(now())
+}
+
+// === Phase 1: AI Chatbot ===
+
+model ChatSession {
+  id           String        @id @default(cuid())
+  visitorId    String
+  visitorEmail String?
+  visitorName  String?
+  status       String        @default("active")
+  source       String?
+  messages     ChatMessage[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model ChatMessage {
+  id            String      @id @default(cuid())
+  chatSessionId String
+  role          String
+  content       String
+  createdAt     DateTime    @default(now())
+
+  chatSession ChatSession @relation(fields: [chatSessionId], references: [id])
+}
+
+// === Phase 2: Blog Engine ===
+
+model ContentPlan {
+  id             String    @id @default(cuid())
+  topic          String
+  targetKeywords String?
+  status         String    @default("planned")
+  blogPostId     String?   @unique
+  blogPost       BlogPost? @relation(fields: [blogPostId], references: [id])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+// === Phase 3: Email Sequences ===
+
+model EmailQueue {
+  id           String    @id @default(cuid())
+  to           String
+  subject      String
+  htmlContent  String
+  status       String    @default("pending")
+  scheduledFor DateTime
+  sentAt       DateTime?
+  error        String?
+  campaignType String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model EmailSequenceState {
+  id           String   @id @default(cuid())
+  email        String
+  campaignType String
+  currentStep  Int      @default(0)
+  completed    Boolean  @default(false)
+  optedOut     Boolean  @default(false)
+  startedAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([email, campaignType])
+}
+
+// === Phase 4: Lead Discovery ===
+
+model Prospect {
+  id              String             @id @default(cuid())
+  platform        String
+  platformUserId  String?
+  username        String
+  displayName     String?
+  profileUrl      String?
+  followerCount   Int?
+  bio             String?
+  discoveredFrom  String?
+  postContent     String?
+  postUrl         String?
+  score           Int                @default(0)
+  status          String             @default("new")
+  email           String?
+  outreachStep    Int                @default(0)
+  lastContactedAt DateTime?
+  notes           String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  outreachMessages OutreachMessage[]
+
+  @@unique([platform, username])
+}
+
+model DiscoveryLog {
+  id               String   @id @default(cuid())
+  platform         String
+  query            String
+  resultsFound     Int      @default(0)
+  prospectsCreated  Int      @default(0)
+  createdAt        DateTime @default(now())
+}
+
+// === Phase 5: Outreach ===
+
+model OutreachMessage {
+  id         String    @id @default(cuid())
+  prospectId String
+  channel    String
+  subject    String?
+  content    String
+  step       Int
+  status     String    @default("pending")
+  sentAt     DateTime?
+  openedAt   DateTime?
+  repliedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  prospect Prospect @relation(fields: [prospectId], references: [id])
 }

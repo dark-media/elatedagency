@@ -13,13 +13,20 @@ export async function POST(request: Request) {
       tiktok,
       twitter,
       onlyfansUrl,
+      // Form sends earningsRange; accept both names
       currentEarnings,
+      earningsRange,
       subscriberCount,
       contentType,
       goals,
+      // Form sends timeOnPlatform; accept both names
       experience,
+      timeOnPlatform,
       referralCode,
     } = body;
+
+    const earnings = currentEarnings || earningsRange;
+    const exp = experience || timeOnPlatform;
 
     if (!name || !email) {
       return NextResponse.json(
@@ -51,11 +58,11 @@ export async function POST(request: Request) {
         tiktok: tiktok || null,
         twitter: twitter || null,
         onlyfansUrl: onlyfansUrl || null,
-        currentEarnings: currentEarnings || null,
+        currentEarnings: earnings || null,
         subscriberCount: subscriberCount || null,
         contentType: contentType || null,
         goals: goals || null,
-        experience: experience || null,
+        experience: exp || null,
         referralCode: referralCode || null,
       },
     });
@@ -79,15 +86,14 @@ export async function POST(request: Request) {
       }
     }
 
-    // Send confirmation email to the applicant
-    await sendEmail({
+    // Send emails (don't let failures block the response)
+    sendEmail({
       to: email,
       subject: "Application Received - Elated Agency",
       html: applicationReceivedTemplate(name),
-    });
+    }).catch(() => {});
 
-    // Send notification email to the agency
-    await sendEmail({
+    sendEmail({
       to: "info@elatedagency.com",
       subject: `New Application: ${name}`,
       html: `
@@ -99,14 +105,26 @@ export async function POST(request: Request) {
         <p><strong>TikTok:</strong> ${tiktok || "N/A"}</p>
         <p><strong>Twitter:</strong> ${twitter || "N/A"}</p>
         <p><strong>OnlyFans URL:</strong> ${onlyfansUrl || "N/A"}</p>
-        <p><strong>Current Earnings:</strong> ${currentEarnings || "N/A"}</p>
+        <p><strong>Current Earnings:</strong> ${earnings || "N/A"}</p>
         <p><strong>Subscriber Count:</strong> ${subscriberCount || "N/A"}</p>
         <p><strong>Content Type:</strong> ${contentType || "N/A"}</p>
         <p><strong>Goals:</strong> ${goals || "N/A"}</p>
-        <p><strong>Experience:</strong> ${experience || "N/A"}</p>
+        <p><strong>Experience:</strong> ${exp || "N/A"}</p>
         <p><strong>Referral Code:</strong> ${referralCode || "None"}</p>
       `,
-    });
+    }).catch(() => {});
+
+    // Start application follow-up email sequence
+    try {
+      await prisma.emailSequenceState.create({
+        data: {
+          email: email.toLowerCase(),
+          campaignType: "application",
+        },
+      });
+    } catch {
+      // Sequence may already exist
+    }
 
     return NextResponse.json(
       {
