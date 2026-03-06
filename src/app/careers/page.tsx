@@ -97,7 +97,7 @@ export default function CareersPage() {
                     <p className="mt-0.5 text-xs text-gold-400">{job.type}</p>
                   </div>
                   <a
-                    href="mailto:careers@elatedagency.com"
+                    href="mailto:info@elatedagency.com"
                     className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-gold-500/20 bg-gold-500/5 px-5 py-2 text-sm font-medium text-gold-400 transition-all hover:bg-gold-500/10"
                   >
                     Apply
@@ -131,7 +131,7 @@ export default function CareersPage() {
               a note about what excites you about Elated.
             </p>
             <a
-              href="mailto:careers@elatedagency.com"
+              href="mailto:info@elatedagency.com"
               className="mt-4 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-gold-500 to-gold-400 px-6 py-3 text-sm font-semibold text-dark-950 transition-all hover:shadow-[0_0_30px_rgba(197,165,90,0.3)]"
             >
               Send Us Your Resume

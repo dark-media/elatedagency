@@ -155,7 +155,7 @@ export default function PrivacyPage() {
                   <li className="list-disc"><strong className="text-white/80">Restriction:</strong> You have the right to request that we restrict the processing of your personal information under certain circumstances.</li>
                 </ul>
                 <p className="mt-3 text-sm leading-relaxed text-white/60">
-                  To exercise any of these rights, please contact us at privacy@elatedagency.com. We will respond to your request within 30 days.
+                  To exercise any of these rights, please contact us at info@elatedagency.com. We will respond to your request within 30 days.
                 </p>
               </div>
 
@@ -187,7 +187,7 @@ export default function PrivacyPage() {
               <div>
                 <h2 className="text-xl font-bold text-white">12. Children&apos;s Privacy</h2>
                 <p className="mt-4 text-sm leading-relaxed text-white/60">
-                  Our services are strictly limited to individuals aged 18 and older. We do not knowingly collect personal information from anyone under the age of 18. If we discover that we have collected information from a minor, we will delete it immediately. If you believe a minor has provided us with personal information, please contact us at privacy@elatedagency.com.
+                  Our services are strictly limited to individuals aged 18 and older. We do not knowingly collect personal information from anyone under the age of 18. If we discover that we have collected information from a minor, we will delete it immediately. If you believe a minor has provided us with personal information, please contact us at info@elatedagency.com.
                 </p>
               </div>
 
@@ -217,7 +217,7 @@ export default function PrivacyPage() {
                   <p className="text-sm text-white/70">
                     <strong className="text-white">Elated Agency</strong>
                   </p>
-                  <p className="mt-1 text-sm text-white/50">Email: privacy@elatedagency.com</p>
+                  <p className="mt-1 text-sm text-white/50">Email: info@elatedagency.com</p>
                   <p className="text-sm text-white/50">General: info@elatedagency.com</p>
                   <p className="text-sm text-white/50">Location: Los Angeles, CA, United States</p>
                 </div>

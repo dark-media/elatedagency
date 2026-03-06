@@ -244,7 +244,7 @@ export default function TermsPage() {
                   <p className="text-sm text-white/70">
                     <strong className="text-white">Elated Agency LLC</strong>
                   </p>
-                  <p className="mt-1 text-sm text-white/50">Email: legal@elatedagency.com</p>
+                  <p className="mt-1 text-sm text-white/50">Email: info@elatedagency.com</p>
                   <p className="text-sm text-white/50">General: info@elatedagency.com</p>
                   <p className="text-sm text-white/50">Location: Los Angeles, CA, United States</p>
                 </div>
