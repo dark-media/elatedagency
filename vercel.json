@@ -6,15 +6,15 @@
     },
     {
       "path": "/api/cron/process-emails",
-      "schedule": "0 * * * *"
+      "schedule": "0 9 * * *"
     },
     {
       "path": "/api/cron/advance-sequences",
-      "schedule": "30 * * * *"
+      "schedule": "0 10 * * *"
     },
     {
       "path": "/api/cron/discover-reddit",
-      "schedule": "0 10 * * *"
+      "schedule": "0 12 * * *"
     },
     {
       "path": "/api/cron/process-outreach",
@@ -22,7 +22,7 @@
     },
     {
       "path": "/api/cron/process-applications",
-      "schedule": "0 */4 * * *"
+      "schedule": "0 16 * * *"
     }
   ]
 }
