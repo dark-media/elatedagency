@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { LogoFull } from "@/components/ui/Logo";
 import { motion, AnimatePresence } from "framer-motion";
 
 const navItems = [
@@ -112,13 +112,7 @@ export default function DashboardLayout({
         {/* Logo */}
         <div className="flex h-16 items-center justify-between border-b border-white/5 px-6">
           <Link href="/dashboard" className="flex items-center gap-2">
-            <Image
-              src="/images/logo-full.png"
-              alt="Elated Agency"
-              width={140}
-              height={35}
-              className="h-7 w-auto"
-            />
+            <LogoFull className="h-7" />
           </Link>
           <button
             onClick={() => setSidebarOpen(false)}

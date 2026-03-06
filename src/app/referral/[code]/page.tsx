@@ -3,8 +3,8 @@
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { motion } from "framer-motion";
+import { LogoFull } from "@/components/ui/Logo";
 import {
   FiArrowRight,
   FiDollarSign,
@@ -34,15 +34,7 @@ export default function ReferralPage() {
       {/* Header */}
       <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 bg-[#0a0a0c]/80 backdrop-blur-xl border-b border-white/5">
         <Link href="/" className="flex items-center gap-3">
-          <Image
-            src="/images/logo-mark.png"
-            alt="Elated"
-            width={36}
-            height={36}
-          />
-          <span className="text-lg font-bold tracking-wider">
-            ELATED AGENCY
-          </span>
+          <LogoFull className="h-9" />
         </Link>
         <Link
           href={`/apply?ref=${code}`}

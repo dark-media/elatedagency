@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
+import { LogoFull } from "@/components/ui/Logo";
 
 const navLinks = [
   { href: "/", label: "Home" },
@@ -51,14 +51,7 @@ export default function Navbar() {
         <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8">
           {/* Logo */}
           <Link href="/" className="relative z-10 flex items-center gap-2">
-            <Image
-              src="/images/logo-full.png"
-              alt="Elated Agency"
-              width={160}
-              height={40}
-              className="h-8 w-auto sm:h-9"
-              priority
-            />
+            <LogoFull className="h-8 sm:h-9" />
           </Link>
 
           {/* Desktop Navigation */}

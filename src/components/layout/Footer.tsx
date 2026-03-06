@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { LogoFull } from "@/components/ui/Logo";
 
 const companyLinks = [
   { href: "/about", label: "About" },
@@ -155,13 +155,7 @@ export default function Footer() {
             className="lg:col-span-4"
           >
             <Link href="/" className="inline-block">
-              <Image
-                src="/images/logo-full.png"
-                alt="Elated Agency"
-                width={180}
-                height={45}
-                className="h-9 w-auto"
-              />
+              <LogoFull className="h-9" />
             </Link>
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-white/40">
               Premium OnlyFans management agency. We transform talented creators

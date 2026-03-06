@@ -35,17 +35,11 @@
   --color-dark-900: #18181b;
   --color-dark-950: #0a0a0c;
 
-  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
-  --font-display: "Inter", system-ui, -apple-system, sans-serif;
+  --font-sans: var(--font-inter, "Inter"), system-ui, -apple-system, sans-serif;
+  --font-display: var(--font-inter, "Inter"), system-ui, -apple-system, sans-serif;
 }
 
-@font-face {
-  font-family: "Inter";
-  font-style: normal;
-  font-weight: 100 900;
-  font-display: swap;
-  src: url("https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap");
-}
+/* Inter font is loaded via next/font or system fallback */
 
 :root {
   --background: #0a0a0c;
@@ -56,11 +50,7 @@
   --blush: #f472b6;
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+/* Tailwind v4 preflight handles the reset — no manual * reset needed */
 
 html {
   scroll-behavior: smooth;

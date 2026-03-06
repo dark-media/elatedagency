@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import { motion } from "framer-motion";
+import { LogoFull } from "@/components/ui/Logo";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -112,14 +112,7 @@ export default function RegisterPage() {
         {/* Logo */}
         <div className="mb-10 flex justify-center">
           <Link href="/">
-            <Image
-              src="/images/logo-full.png"
-              alt="Elated Agency"
-              width={180}
-              height={45}
-              className="h-10 w-auto"
-              priority
-            />
+            <LogoFull className="h-10" />
           </Link>
         </div>
 
