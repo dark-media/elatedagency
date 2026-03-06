@@ -35,11 +35,31 @@ export default function ChatWidget() {
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
   const [isStreaming, setIsStreaming] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     setVisitorId(getVisitorId());
     setEmailCaptured(!!localStorage.getItem("elated_email_captured"));
   }, []);
+
+  // Close chat when clicking outside
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(e: MouseEvent) {
+      const target = e.target as Node;
+      if (
+        panelRef.current &&
+        !panelRef.current.contains(target) &&
+        toggleRef.current &&
+        !toggleRef.current.contains(target)
+      ) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -157,6 +177,7 @@ export default function ChatWidget() {
     <>
       {/* Chat Toggle Button */}
       <motion.button
+        ref={toggleRef}
         onClick={() => setOpen(!open)}
         className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-r from-gold-500 to-gold-400 shadow-[0_0_25px_rgba(197,165,90,0.3)] transition-all hover:shadow-[0_0_35px_rgba(197,165,90,0.5)]"
         whileHover={{ scale: 1.05 }}
@@ -208,6 +229,7 @@ export default function ChatWidget() {
       <AnimatePresence>
         {open && (
           <motion.div
+            ref={panelRef}
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
