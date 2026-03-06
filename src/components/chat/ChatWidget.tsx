@@ -1,9 +1,13 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { useChat } from "@ai-sdk/react";
-import { TextStreamChatTransport } from "ai";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+
+interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+}
 
 function getVisitorId() {
   if (typeof window === "undefined") return "";
@@ -15,6 +19,12 @@ function getVisitorId() {
   return id;
 }
 
+const WELCOME_MESSAGE: ChatMessage = {
+  id: "welcome",
+  role: "assistant",
+  text: "Hey! I'm Elated's AI assistant. Whether you're curious about our management services, pricing, or how we help creators grow — I'm here to help. What would you like to know?",
+};
+
 export default function ChatWidget() {
   const [open, setOpen] = useState(false);
   const [emailCaptured, setEmailCaptured] = useState(false);
@@ -22,6 +32,8 @@ export default function ChatWidget() {
   const [emailInput, setEmailInput] = useState("");
   const [input, setInput] = useState("");
   const [visitorId, setVisitorId] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
+  const [isStreaming, setIsStreaming] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -29,39 +41,12 @@ export default function ChatWidget() {
     setEmailCaptured(!!localStorage.getItem("elated_email_captured"));
   }, []);
 
-  const transport = useMemo(
-    () =>
-      new TextStreamChatTransport({
-        api: "/api/chat",
-        body: { visitorId },
-      }),
-    [visitorId]
-  );
-
-  const { messages, sendMessage, status } = useChat({
-    transport,
-    messages: [
-      {
-        id: "welcome",
-        role: "assistant" as const,
-        parts: [
-          {
-            type: "text" as const,
-            text: "Hey! I'm Elated's AI assistant. Whether you're curious about our management services, pricing, or how we help creators grow — I'm here to help. What would you like to know?",
-          },
-        ],
-      },
-    ],
-  });
-
-  const isStreaming = status === "streaming" || status === "submitted";
-
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Show email capture after 4+ messages and email not yet captured
+  // Show email capture after 4+ messages
   useEffect(() => {
     if (messages.length >= 5 && !emailCaptured && !showEmailForm) {
       setShowEmailForm(true);
@@ -89,24 +74,84 @@ export default function ChatWidget() {
   );
 
   const handleSend = useCallback(
-    (e: React.FormEvent) => {
+    async (e: React.FormEvent) => {
       e.preventDefault();
       const text = input.trim();
-      if (!text || isStreaming) return;
-      setInput("");
-      sendMessage({ text });
-    },
-    [input, isStreaming, sendMessage]
-  );
+      if (!text || isStreaming || !visitorId) return;
 
-  // Extract text content from message parts
-  const getMessageText = (m: (typeof messages)[0]) => {
-    if (!m.parts) return "";
-    return m.parts
-      .filter((p): p is { type: "text"; text: string } => p.type === "text")
-      .map((p) => p.text)
-      .join("");
-  };
+      const userMessage: ChatMessage = {
+        id: `user-${Date.now()}`,
+        role: "user",
+        text,
+      };
+
+      setInput("");
+      setIsStreaming(true);
+
+      // Add user message
+      const updatedMessages = [...messages, userMessage];
+      setMessages(updatedMessages);
+
+      // Build messages payload for API (content format)
+      const apiMessages = updatedMessages.map((m) => ({
+        role: m.role,
+        content: m.text,
+      }));
+
+      try {
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: apiMessages, visitorId }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status}`);
+        }
+
+        const assistantId = `assistant-${Date.now()}`;
+
+        // Add empty assistant message that we'll stream into
+        setMessages((prev) => [
+          ...prev,
+          { id: assistantId, role: "assistant", text: "" },
+        ]);
+
+        // Read streaming response
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+
+        if (reader) {
+          let done = false;
+          while (!done) {
+            const { value, done: streamDone } = await reader.read();
+            done = streamDone;
+            if (value) {
+              const chunk = decoder.decode(value, { stream: !done });
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantId ? { ...m, text: m.text + chunk } : m
+                )
+              );
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Chat error:", error);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `error-${Date.now()}`,
+            role: "assistant",
+            text: "Sorry, I'm having trouble connecting right now. Please try again or reach out to us at info@elatedagency.com.",
+          },
+        ]);
+      } finally {
+        setIsStreaming(false);
+      }
+    },
+    [input, isStreaming, visitorId, messages]
+  );
 
   return (
     <>
@@ -204,16 +249,16 @@ export default function ChatWidget() {
                 {messages.map((m) => (
                   <div
                     key={m.id}
-                    className={`flex ${(m.role as string) === "user" ? "justify-end" : "justify-start"}`}
+                    className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
                   >
                     <div
                       className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
-                        (m.role as string) === "user"
+                        m.role === "user"
                           ? "bg-gold-500/20 text-white"
                           : "bg-white/5 text-white/80"
                       }`}
                     >
-                      {getMessageText(m)}
+                      {m.text}
                     </div>
                   </div>
                 ))}
