@@ -39,14 +39,62 @@ export async function GET(req: NextRequest) {
       outreachStep: { lt: 3 },
     },
     orderBy: { score: "desc" },
-    take: remaining,
+    take: remaining * 2, // fetch extra to account for skips
     include: { outreachMessages: true },
   });
 
   let sent = 0;
   let skipped = 0;
+  const emailsSentThisRun = new Set<string>();
 
   for (const prospect of prospects) {
+    // Stop if we've hit the remaining limit
+    if (sent >= remaining) break;
+
+    if (!prospect.email) {
+      skipped++;
+      continue;
+    }
+
+    const emailLower = prospect.email.toLowerCase();
+
+    // DEDUP: Skip if we already sent to this email address in this run
+    if (emailsSentThisRun.has(emailLower)) {
+      skipped++;
+      continue;
+    }
+
+    // DEDUP: Skip if prospect already has a message for this outreach step
+    const existingForStep = prospect.outreachMessages.find(
+      (m) => m.step === prospect.outreachStep && m.status === "sent"
+    );
+    if (existingForStep) {
+      // Fix: increment step since message was already sent (from a prior run)
+      await prisma.prospect.update({
+        where: { id: prospect.id },
+        data: {
+          outreachStep: prospect.outreachStep + 1,
+          lastContactedAt: existingForStep.sentAt || new Date(),
+          status: prospect.outreachStep >= 2 ? "completed" : "contacted",
+        },
+      });
+      skipped++;
+      continue;
+    }
+
+    // DEDUP: Check if ANY prospect with this email was already sent to today
+    const alreadySentToday = await prisma.outreachMessage.findFirst({
+      where: {
+        prospect: { email: { equals: emailLower, mode: "insensitive" } },
+        sentAt: { gte: today },
+        status: "sent",
+      },
+    });
+    if (alreadySentToday) {
+      skipped++;
+      continue;
+    }
+
     // Check if enough time has passed since last contact
     if (prospect.lastContactedAt) {
       const hoursSinceContact =
@@ -56,11 +104,6 @@ export async function GET(req: NextRequest) {
         skipped++;
         continue;
       }
-    }
-
-    if (!prospect.email) {
-      skipped++;
-      continue;
     }
 
     try {
@@ -106,6 +149,7 @@ export async function GET(req: NextRequest) {
           },
         });
         sent++;
+        emailsSentThisRun.add(emailLower);
       }
     } catch (error) {
       console.error(`Outreach error for ${prospect.username}:`, error);
