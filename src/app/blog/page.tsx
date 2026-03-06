@@ -7,7 +7,7 @@ export const metadata = {
     "Expert tips on growing your OnlyFans, content strategy, revenue optimization, and creator management insights from Elated Agency.",
 };
 
-export const revalidate = 3600; // Revalidate every hour
+export const revalidate = 60; // Revalidate every minute
 
 export default async function BlogPage() {
   const posts = await prisma.blogPost.findMany({
