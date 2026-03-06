@@ -118,14 +118,15 @@ export async function GET(req: NextRequest) {
       // Replace placeholder with actual email for unsubscribe
       const finalHtml = html.replace("PROSPECT_EMAIL", encodeURIComponent(prospect.email));
 
-      // Send the email
+      // Send the email with Reply-To for inbound routing
       const result = await sendEmail({
         to: prospect.email,
         subject,
         html: finalHtml,
+        replyTo: "natalie@elatedagency.com",
       });
 
-      // Record the outreach message
+      // Record the outreach message (store messageId for threading)
       await prisma.outreachMessage.create({
         data: {
           prospectId: prospect.id,
@@ -134,6 +135,7 @@ export async function GET(req: NextRequest) {
           content: finalHtml,
           step: prospect.outreachStep,
           status: result.success ? "sent" : "failed",
+          messageId: result.success && result.messageId ? result.messageId : null,
           sentAt: result.success ? new Date() : null,
         },
       });

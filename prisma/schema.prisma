@@ -258,10 +258,14 @@ model Prospect {
   email           String?
   outreachStep    Int                @default(0)
   lastContactedAt DateTime?
+  autoReplyCount    Int              @default(0)
+  autoReplyOptedOut Boolean          @default(false)
+  lastAutoReplyAt   DateTime?
   notes           String?
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
   outreachMessages OutreachMessage[]
+  conversationMessages ConversationMessage[]
 
   @@unique([platform, username])
 }
@@ -285,10 +289,33 @@ model OutreachMessage {
   content    String
   step       Int
   status     String    @default("pending")
+  messageId  String?
   sentAt     DateTime?
   openedAt   DateTime?
   repliedAt  DateTime?
   createdAt  DateTime  @default(now())
 
   prospect Prospect @relation(fields: [prospectId], references: [id])
+}
+
+// === Phase 7: Auto-Reply System ===
+
+model ConversationMessage {
+  id          String   @id @default(cuid())
+  prospectId  String
+  direction   String   // "inbound" or "outbound"
+  fromEmail   String
+  toEmail     String
+  subject     String?
+  content     String   // plain text content
+  htmlContent String?  // HTML version (for outbound)
+  messageId   String?  // Email Message-ID header for threading
+  inReplyTo   String?  // References parent message
+  status      String   @default("received") // received, sent, failed
+  createdAt   DateTime @default(now())
+
+  prospect Prospect @relation(fields: [prospectId], references: [id])
+
+  @@index([prospectId])
+  @@index([messageId])
 }

@@ -15,15 +15,23 @@ interface EmailOptions {
   subject: string;
   html: string;
   from?: string;
+  replyTo?: string;
+  inReplyTo?: string;
+  references?: string;
 }
 
-export async function sendEmail({ to, subject, html, from }: EmailOptions) {
+export async function sendEmail({ to, subject, html, from, replyTo, inReplyTo, references }: EmailOptions) {
   try {
     const info = await transporter.sendMail({
       from: from || `"${process.env.FROM_NAME}" <${process.env.FROM_EMAIL}>`,
       to,
       subject,
       html,
+      replyTo: replyTo || undefined,
+      headers: {
+        ...(inReplyTo ? { "In-Reply-To": inReplyTo } : {}),
+        ...(references ? { References: references } : {}),
+      },
     });
     return { success: true, messageId: info.messageId };
   } catch (error) {

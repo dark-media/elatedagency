@@ -8,16 +8,27 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Email is required" }, { status: 400 });
   }
 
+  const decodedEmail = decodeURIComponent(email);
+
   // Mark all sequence states as opted out
   await prisma.emailSequenceState.updateMany({
-    where: { email },
+    where: { email: { equals: decodedEmail, mode: "insensitive" } },
     data: { optedOut: true },
   });
 
   // Cancel any pending emails
   await prisma.emailQueue.updateMany({
-    where: { to: email, status: "pending" },
+    where: { to: { equals: decodedEmail, mode: "insensitive" }, status: "pending" },
     data: { status: "cancelled" },
+  });
+
+  // Also opt out of auto-replies for any matching prospects
+  await prisma.prospect.updateMany({
+    where: { email: { equals: decodedEmail, mode: "insensitive" } },
+    data: {
+      autoReplyOptedOut: true,
+      status: "unsubscribed",
+    },
   });
 
   // Redirect to unsubscribe confirmation page
