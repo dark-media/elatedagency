@@ -64,12 +64,13 @@ const earningsOptions = [
 ];
 
 const contentTypes = [
-  "Fitness & Lifestyle",
-  "Fashion & Beauty",
+  "Solo Content",
+  "Couples / B-G Content",
+  "G-G Content",
+  "Fetish / Niche",
+  "Fitness & Glamour",
   "Cosplay & Creative",
-  "Artistic & Photography",
-  "Lifestyle & Personal",
-  "Other",
+  "Mixed / Variety",
 ];
 
 const timeOptions = [

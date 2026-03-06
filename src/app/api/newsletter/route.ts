@@ -42,8 +42,8 @@ export async function POST(request: Request) {
       },
     });
 
-    // Send welcome email to the new subscriber
-    await sendEmail({
+    // Send welcome email (don't let SMTP failures block the response)
+    sendEmail({
       to: email,
       subject: "Welcome to the Elated Newsletter!",
       html: `
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
         </body>
         </html>
       `,
-    });
+    }).catch(() => {});
 
     // Start welcome email sequence
     try {
