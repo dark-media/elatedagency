@@ -19,7 +19,7 @@ const team = [
   {
     name: "Gary Anderson",
     role: "CEO & Founder",
-    image: "/images/elated_agency_14.jpeg",
+    image: "/images/gary-headshot.jpeg",
     bio: "A serial entrepreneur with over a decade of experience in digital marketing and AI technology. Gary founded Elated Agency with a vision to democratize premium talent management for OnlyFans creators at every level. His background in machine learning and creator economics drives the company's innovative approach.",
   },
   {

@@ -50,6 +50,14 @@ export default function HeroSection() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const sectionRef = useRef<HTMLDivElement>(null);
   const [videoLoaded, setVideoLoaded] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+
+  const toggleMute = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = !videoRef.current.muted;
+      setIsMuted(videoRef.current.muted);
+    }
+  };
 
   const { scrollYProgress } = useScroll({
     target: sectionRef,
@@ -87,6 +95,23 @@ export default function HeroSection() {
           <source src="/videos/hero-video.mp4" type="video/mp4" />
         </video>
       </motion.div>
+
+      {/* Video Mute Toggle */}
+      <button
+        onClick={toggleMute}
+        className="absolute bottom-24 right-6 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-dark-950/60 backdrop-blur-sm transition-all hover:border-gold-500/30 hover:bg-dark-950/80 sm:bottom-28 sm:right-8"
+        aria-label={isMuted ? "Unmute video" : "Mute video"}
+      >
+        {isMuted ? (
+          <svg className="h-5 w-5 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 9.75L19.5 12m0 0l2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6l4.72-3.15a.75.75 0 011.28.53v13.74a.75.75 0 01-1.28.53L6.75 14.25H3.75a.75.75 0 01-.75-.75v-3a.75.75 0 01.75-.75h3z" />
+          </svg>
+        ) : (
+          <svg className="h-5 w-5 text-gold-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-3.15a.75.75 0 011.28.53v12.74a.75.75 0 01-1.28.53l-4.72-3.15H3.75a.75.75 0 01-.75-.75v-3a.75.75 0 01.75-.75h3z" />
+          </svg>
+        )}
+      </button>
 
       {/* Dark Overlay */}
       <motion.div
