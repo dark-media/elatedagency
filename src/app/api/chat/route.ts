@@ -1,9 +1,25 @@
 import { anthropic } from "@ai-sdk/anthropic";
-import { streamText } from "ai";
+import { streamText, convertToModelMessages } from "ai";
 import prisma from "@/lib/prisma";
 import { CHATBOT_SYSTEM_PROMPT } from "@/lib/chatbot-knowledge";
 
 export const maxDuration = 30;
+
+// Extract text content from a message (handles both parts and content formats)
+function extractText(msg: Record<string, unknown>): string {
+  // v6 parts format (sent by TextStreamChatTransport)
+  if (Array.isArray(msg.parts)) {
+    return (msg.parts as Array<{ type: string; text?: string }>)
+      .filter((p) => p.type === "text" && p.text)
+      .map((p) => p.text)
+      .join("");
+  }
+  // Legacy content format
+  if (typeof msg.content === "string") {
+    return msg.content;
+  }
+  return "";
+}
 
 export async function POST(req: Request) {
   const { messages, visitorId } = await req.json();
@@ -27,19 +43,25 @@ export async function POST(req: Request) {
   // Store the latest user message
   const lastMessage = messages[messages.length - 1];
   if (lastMessage.role === "user") {
-    await prisma.chatMessage.create({
-      data: {
-        chatSessionId: session.id,
-        role: "user",
-        content: lastMessage.content,
-      },
-    });
+    const text = extractText(lastMessage);
+    if (text) {
+      await prisma.chatMessage.create({
+        data: {
+          chatSessionId: session.id,
+          role: "user",
+          content: text,
+        },
+      });
+    }
   }
+
+  // Convert UI messages (parts format) to model messages (content format)
+  const coreMessages = await convertToModelMessages(messages);
 
   const result = streamText({
     model: anthropic("claude-sonnet-4-20250514"),
     system: CHATBOT_SYSTEM_PROMPT,
-    messages,
+    messages: coreMessages,
     onFinish: async ({ text }) => {
       // Store assistant response
       await prisma.chatMessage.create({
