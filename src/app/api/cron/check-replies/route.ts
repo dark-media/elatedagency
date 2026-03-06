@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ImapFlow } from "imapflow";
+import * as tls from "tls";
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
 import { generateReplyEmail } from "@/lib/reply-generator";
@@ -9,6 +9,7 @@ export const maxDuration = 60;
 const DAILY_AUTO_REPLY_LIMIT = 50;
 const MAX_REPLIES_PER_PROSPECT = 7;
 const MIN_REPLY_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+const MAX_MESSAGES_PER_RUN = 5;
 
 const STOP_KEYWORDS = [
   "stop",
@@ -22,6 +23,134 @@ const STOP_KEYWORDS = [
   "no thanks",
   "not interested",
 ];
+
+// Minimal IMAP client using raw TLS
+class SimpleIMAP {
+  private socket: tls.TLSSocket | null = null;
+  private buffer = "";
+  private tagCounter = 0;
+  private onData: ((data: string) => void) | null = null;
+
+  async connect(host: string, port: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error("Connection timeout")), 15000);
+
+      this.socket = tls.connect({ host, port, servername: host }, () => {
+        clearTimeout(timeout);
+      });
+
+      this.socket.setEncoding("utf8");
+      this.socket.on("error", (err) => {
+        clearTimeout(timeout);
+        reject(err);
+      });
+
+      // Wait for server greeting
+      let greeting = "";
+      const onGreeting = (data: string) => {
+        greeting += data;
+        if (greeting.includes("\r\n")) {
+          this.socket!.removeListener("data", onGreeting);
+          // Set up regular data handler
+          this.socket!.on("data", (chunk: string) => {
+            this.buffer += chunk;
+            if (this.onData) this.onData(chunk);
+          });
+          resolve();
+        }
+      };
+      this.socket!.on("data", onGreeting);
+    });
+  }
+
+  private async command(cmd: string): Promise<string> {
+    const tag = `A${++this.tagCounter}`;
+    const fullCmd = `${tag} ${cmd}\r\n`;
+
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error(`Command timeout: ${cmd.split(" ")[0]}`)), 20000);
+      let response = "";
+
+      this.onData = () => {
+        // Check if we have a complete tagged response
+        const lines = this.buffer.split("\r\n");
+        for (const line of lines) {
+          if (line.startsWith(`${tag} `)) {
+            clearTimeout(timeout);
+            this.onData = null;
+            response = this.buffer;
+            this.buffer = "";
+            resolve(response);
+            return;
+          }
+        }
+      };
+
+      // Check buffer for any data already received
+      this.buffer = "";
+      this.socket!.write(fullCmd);
+    });
+  }
+
+  async login(user: string, pass: string): Promise<void> {
+    const resp = await this.command(`LOGIN "${user}" "${pass}"`);
+    if (!resp.includes("OK")) throw new Error("Login failed");
+  }
+
+  async select(mailbox: string): Promise<void> {
+    const resp = await this.command(`SELECT "${mailbox}"`);
+    if (!resp.includes("OK")) throw new Error(`Select ${mailbox} failed`);
+  }
+
+  async searchUnseen(): Promise<number[]> {
+    const resp = await this.command("SEARCH UNSEEN");
+    const match = resp.match(/\* SEARCH([\d\s]*)/);
+    if (!match || !match[1].trim()) return [];
+    return match[1].trim().split(/\s+/).map(Number);
+  }
+
+  async fetchMessage(seqNum: number): Promise<{
+    headers: string;
+    body: string;
+    raw: string;
+  }> {
+    const resp = await this.command(`FETCH ${seqNum} (BODY[HEADER] BODY[TEXT])`);
+
+    // Parse headers
+    const headerMatch = resp.match(/BODY\[HEADER\]\s*\{(\d+)\}\r\n([\s\S]*?)(?=\r\n\* |BODY\[TEXT\])/);
+    const headers = headerMatch ? headerMatch[2] : "";
+
+    // Parse body text
+    const bodyMatch = resp.match(/BODY\[TEXT\]\s*\{(\d+)\}\r\n([\s\S]*?)(?=\)\r\n)/);
+    const body = bodyMatch ? bodyMatch[2] : "";
+
+    return { headers, body, raw: resp };
+  }
+
+  async markAsRead(seqNum: number): Promise<void> {
+    await this.command(`STORE ${seqNum} +FLAGS (\\Seen)`);
+  }
+
+  async logout(): Promise<void> {
+    try {
+      await this.command("LOGOUT");
+    } catch {}
+    this.socket?.destroy();
+  }
+}
+
+function parseHeader(headers: string, name: string): string {
+  const regex = new RegExp(`^${name}:\\s*(.+?)(?=\\r?\\n(?!\\s)|$)`, "mi");
+  const match = headers.match(regex);
+  return match ? match[1].trim() : "";
+}
+
+function parseEmailAddress(from: string): string {
+  const match = from.match(/<([^>]+)>/);
+  if (match) return match[1].toLowerCase();
+  const emailMatch = from.match(/[\w.-]+@[\w.-]+\.\w+/);
+  return emailMatch ? emailMatch[0].toLowerCase() : from.toLowerCase();
+}
 
 export async function GET(req: NextRequest) {
   const auth = req.headers.get("authorization");
@@ -40,104 +169,71 @@ export async function GET(req: NextRequest) {
   let skipped = 0;
   let errors = 0;
 
-  const client = new ImapFlow({
-    host: "imap.gmail.com",
-    port: 993,
-    secure: true,
-    auth: {
-      user: imapUser,
-      pass: imapPass,
-    },
-    logger: false,
-    greetingTimeout: 10000,
-    socketTimeout: 30000,
-  });
+  const imap = new SimpleIMAP();
 
   try {
     console.log("Check-replies: connecting to IMAP...");
-    await client.connect();
-    console.log("Check-replies: connected successfully");
+    await imap.connect("imap.gmail.com", 993);
+    console.log("Check-replies: connected, logging in...");
+    await imap.login(imapUser, imapPass);
+    console.log("Check-replies: logged in, selecting INBOX...");
+    await imap.select("INBOX");
 
-    // Open INBOX
-    const lock = await client.getMailboxLock("INBOX");
+    const unseenIds = await imap.searchUnseen();
+    console.log(`Check-replies: found ${unseenIds.length} unread messages`);
 
-    try {
-      // Search for unread emails
-      const messages = client.fetch(
-        { seen: false },
-        {
-          uid: true,
-          envelope: true,
-          source: true,
-          flags: true,
+    const toProcess = unseenIds.slice(0, MAX_MESSAGES_PER_RUN);
+
+    for (const seqNum of toProcess) {
+      try {
+        const msg = await imap.fetchMessage(seqNum);
+
+        const from = parseHeader(msg.headers, "From");
+        const subject = parseHeader(msg.headers, "Subject");
+        const messageId = parseHeader(msg.headers, "Message-ID") || parseHeader(msg.headers, "Message-Id");
+        const inReplyTo = parseHeader(msg.headers, "In-Reply-To");
+
+        if (!from) {
+          skipped++;
+          await imap.markAsRead(seqNum);
+          continue;
         }
-      );
 
-      const MAX_MESSAGES_PER_RUN = 5;
-      let messageCount = 0;
+        const senderEmail = parseEmailAddress(from);
+        const textBody = extractPlainText(msg.body, msg.headers);
 
-      for await (const msg of messages) {
-        if (messageCount >= MAX_MESSAGES_PER_RUN) {
-          console.log("Check-replies: max messages per run reached, will continue next cycle");
-          break;
+        if (!textBody.trim()) {
+          skipped++;
+          await imap.markAsRead(seqNum);
+          continue;
         }
-        messageCount++;
-        try {
-          const envelope = msg.envelope;
-          if (!envelope?.from?.[0]?.address) {
-            skipped++;
-            continue;
-          }
 
-          const senderEmail = envelope.from[0].address.toLowerCase();
-          const subject = envelope.subject || "";
-          const messageId = envelope.messageId || "";
-          const inReplyTo = envelope.inReplyTo || "";
+        const result = await processInboundEmail({
+          senderEmail,
+          subject,
+          textBody: stripQuotedText(textBody),
+          messageId,
+          inReplyTo,
+        });
 
-          // Extract plain text from the email source
-          const rawSource = msg.source?.toString() || "";
-          const textBody = extractPlainText(rawSource);
-
-          if (!textBody.trim()) {
-            skipped++;
-            // Mark as read even if empty
-            await client.messageFlagsAdd(msg.uid, ["\\Seen"], { uid: true });
-            continue;
-          }
-
-          // Process this email through the auto-reply system
-          const result = await processInboundEmail({
-            senderEmail,
-            subject,
-            textBody: stripQuotedText(textBody),
-            messageId,
-            inReplyTo,
-          });
-
-          if (result === "replied") {
-            processed++;
-          } else {
-            skipped++;
-          }
-
-          // Mark as read
-          await client.messageFlagsAdd(msg.uid, ["\\Seen"], { uid: true });
-        } catch (msgError) {
-          console.error("Error processing message:", msgError);
-          errors++;
-          // Still mark as read to avoid reprocessing
-          try {
-            await client.messageFlagsAdd(msg.uid, ["\\Seen"], { uid: true });
-          } catch {}
+        if (result === "replied") {
+          processed++;
+        } else {
+          skipped++;
         }
+
+        await imap.markAsRead(seqNum);
+      } catch (msgError) {
+        console.error("Error processing message:", msgError);
+        errors++;
+        try { await imap.markAsRead(seqNum); } catch {}
       }
-    } finally {
-      lock.release();
     }
 
-    await client.logout();
+    await imap.logout();
   } catch (error) {
-    console.error("IMAP connection error:", error);
+    console.error("IMAP error:", error);
+    try { await imap.logout(); } catch {}
     return NextResponse.json(
       { error: "IMAP connection failed", details: String(error) },
       { status: 500 }
@@ -230,7 +326,6 @@ async function processInboundEmail({
       data: { autoReplyOptedOut: true, status: "unsubscribed" },
     });
 
-    // Send polite goodbye
     const goodbyeHtml = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;background-color:#fafafa;font-family:'Inter',Arial,sans-serif;">
@@ -382,38 +477,36 @@ async function processInboundEmail({
 
 // === Helpers ===
 
-function extractPlainText(rawEmail: string): string {
-  // Try to find the text/plain part
-  const parts = rawEmail.split(/\r?\n\r?\n/);
-  if (parts.length < 2) return rawEmail;
+function extractPlainText(body: string, headers: string): string {
+  // Check content transfer encoding
+  const isBase64 = headers.toLowerCase().includes("content-transfer-encoding: base64") ||
+                   body.includes("Content-Transfer-Encoding: base64");
+  const isQP = headers.toLowerCase().includes("content-transfer-encoding: quoted-printable") ||
+               body.includes("Content-Transfer-Encoding: quoted-printable");
 
-  // Simple approach: get the body after headers
-  const body = parts.slice(1).join("\n\n");
+  let text = body;
 
-  // If it looks like HTML, strip it
-  if (body.includes("<html") || body.includes("<div") || body.includes("<p>")) {
-    return stripHtml(body);
-  }
-
-  // Handle base64 encoded content
-  if (rawEmail.includes("Content-Transfer-Encoding: base64")) {
-    const base64Match = body.match(/([A-Za-z0-9+/=\r\n]+)/);
-    if (base64Match) {
-      try {
-        const decoded = Buffer.from(base64Match[1].replace(/\r?\n/g, ""), "base64").toString("utf-8");
-        return decoded.includes("<") ? stripHtml(decoded) : decoded;
-      } catch {}
-    }
+  // Handle base64
+  if (isBase64) {
+    try {
+      const cleaned = text.replace(/\r?\n/g, "").replace(/[^A-Za-z0-9+/=]/g, "");
+      text = Buffer.from(cleaned, "base64").toString("utf-8");
+    } catch {}
   }
 
   // Handle quoted-printable
-  if (rawEmail.includes("Content-Transfer-Encoding: quoted-printable")) {
-    return body
+  if (isQP) {
+    text = text
       .replace(/=\r?\n/g, "")
       .replace(/=([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
   }
 
-  return body;
+  // If HTML, strip tags
+  if (text.includes("<html") || text.includes("<div") || text.includes("<p>")) {
+    text = stripHtml(text);
+  }
+
+  return text.trim();
 }
 
 function stripQuotedText(text: string): string {
