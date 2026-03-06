@@ -49,112 +49,150 @@ interface RedditPost {
   };
 }
 
+async function fetchWithRetry(
+  url: string,
+  userAgent: string,
+  maxRetries: number = 2
+): Promise<{ data: RedditPost[]; status: number } | null> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(url, {
+        headers: { "User-Agent": userAgent },
+      });
+
+      if (res.status === 429) {
+        // Rate limited - wait longer and retry
+        const retryAfter = parseInt(res.headers.get("retry-after") || "5");
+        const waitTime = Math.max(retryAfter * 1000, 3000 * (attempt + 1));
+        await new Promise((r) => setTimeout(r, waitTime));
+        continue;
+      }
+
+      if (!res.ok) {
+        return { data: [], status: res.status };
+      }
+
+      const json = await res.json();
+      const posts: RedditPost[] = json?.data?.children || [];
+      return { data: posts, status: res.status };
+    } catch {
+      if (attempt === maxRetries) return null;
+      await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+    }
+  }
+  return null;
+}
+
 export async function GET(req: NextRequest) {
   const auth = req.headers.get("authorization");
   if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const userAgent = process.env.REDDIT_USER_AGENT || "ElatedAgency/1.0";
+  const userAgent =
+    process.env.REDDIT_USER_AGENT ||
+    "Mozilla/5.0 (compatible; ContentBot/1.0; +https://elatedagency.com)";
   let totalFound = 0;
   let totalCreated = 0;
   const errors: string[] = [];
+  const statusCodes: Record<string, number> = {};
 
-  // Strategy 1: Search each subreddit with multiple queries
+  // Strategy 1: Browse "new" posts in high-intent subreddits (most reliable)
+  // Do this FIRST since it's most likely to succeed
   for (const subreddit of SUBREDDITS) {
-    // Pick 3 random queries per subreddit for variety
-    const shuffled = [...SEARCH_QUERIES].sort(() => Math.random() - 0.5);
-    const queries = shuffled.slice(0, 3);
+    const result = await fetchWithRetry(
+      `https://www.reddit.com/r/${subreddit}/new.json?limit=100`,
+      userAgent
+    );
 
-    for (const query of queries) {
-      try {
-        const res = await fetch(
-          `https://www.reddit.com/r/${subreddit}/search.json?q=${encodeURIComponent(query)}&restrict_sr=1&sort=new&limit=25&t=month`,
-          { headers: { "User-Agent": userAgent } }
-        );
-
-        if (!res.ok) continue;
-
-        const data = await res.json();
-        const posts: RedditPost[] = data?.data?.children || [];
-        totalFound += posts.length;
-
-        for (const post of posts) {
-          const created = await processPost(post, subreddit);
-          if (created) totalCreated++;
-        }
-      } catch (error) {
-        errors.push(`Search r/${subreddit} "${query}": ${error}`);
-      }
-
-      // Small delay to avoid rate limiting
-      await new Promise((r) => setTimeout(r, 500));
+    if (!result) {
+      errors.push(`New r/${subreddit}: fetch failed`);
+      continue;
     }
-  }
 
-  // Strategy 2: Browse "new" posts in high-intent subreddits
-  const hotSubs = ["onlyfansadvice", "CreatorsAdvice", "onlyfans101", "FanslyAdvice"];
-  for (const subreddit of hotSubs) {
-    try {
-      const res = await fetch(
-        `https://www.reddit.com/r/${subreddit}/new.json?limit=50`,
-        { headers: { "User-Agent": userAgent } }
-      );
+    statusCodes[`new_${subreddit}`] = result.status;
 
-      if (!res.ok) continue;
-
-      const data = await res.json();
-      const posts: RedditPost[] = data?.data?.children || [];
-      totalFound += posts.length;
-
-      for (const post of posts) {
+    if (result.data.length > 0) {
+      totalFound += result.data.length;
+      for (const post of result.data) {
         const created = await processPost(post, subreddit);
         if (created) totalCreated++;
       }
-    } catch (error) {
-      errors.push(`New r/${subreddit}: ${error}`);
     }
 
-    await new Promise((r) => setTimeout(r, 500));
+    // 2 second delay between subreddits to be gentle with Reddit
+    await new Promise((r) => setTimeout(r, 2000));
   }
 
-  // Strategy 3: Search across all of Reddit for high-intent queries
+  // Strategy 2: Search with high-intent queries across selected subreddits
+  // Pick fewer queries to stay within rate limits
+  const shuffled = [...SEARCH_QUERIES].sort(() => Math.random() - 0.5);
+  const selectedQueries = shuffled.slice(0, 5);
+  const searchSubs = ["onlyfansadvice", "CreatorsAdvice", "onlyfans101"];
+
+  for (const subreddit of searchSubs) {
+    for (const query of selectedQueries) {
+      const result = await fetchWithRetry(
+        `https://www.reddit.com/r/${subreddit}/search.json?q=${encodeURIComponent(query)}&restrict_sr=1&sort=new&limit=25&t=month`,
+        userAgent
+      );
+
+      if (!result) {
+        errors.push(`Search r/${subreddit} "${query}": fetch failed`);
+        continue;
+      }
+
+      statusCodes[`search_${subreddit}_${query.slice(0, 15)}`] = result.status;
+
+      if (result.data.length > 0) {
+        totalFound += result.data.length;
+        for (const post of result.data) {
+          const created = await processPost(post, subreddit);
+          if (created) totalCreated++;
+        }
+      }
+
+      // 2 second delay between requests
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
+
+  // Strategy 3: Cross-Reddit search for highest-intent queries
   const crossRedditQueries = [
     "onlyfans management agency",
     "onlyfans need manager",
-    "onlyfans struggling to grow",
-    "how to promote onlyfans",
+    "looking for onlyfans manager",
   ];
 
   for (const query of crossRedditQueries) {
-    try {
-      const res = await fetch(
-        `https://www.reddit.com/search.json?q=${encodeURIComponent(query)}&sort=new&limit=25&t=month`,
-        { headers: { "User-Agent": userAgent } }
-      );
+    const result = await fetchWithRetry(
+      `https://www.reddit.com/search.json?q=${encodeURIComponent(query)}&sort=new&limit=25&t=month`,
+      userAgent
+    );
 
-      if (!res.ok) continue;
+    if (!result) {
+      errors.push(`Cross-Reddit "${query}": fetch failed`);
+      continue;
+    }
 
-      const data = await res.json();
-      const posts: RedditPost[] = data?.data?.children || [];
-      totalFound += posts.length;
+    statusCodes[`cross_${query.slice(0, 20)}`] = result.status;
 
-      for (const post of posts) {
+    if (result.data.length > 0) {
+      totalFound += result.data.length;
+      for (const post of result.data) {
         const created = await processPost(post, post.data.subreddit);
         if (created) totalCreated++;
       }
-    } catch (error) {
-      errors.push(`Cross-Reddit "${query}": ${error}`);
     }
 
-    await new Promise((r) => setTimeout(r, 500));
+    await new Promise((r) => setTimeout(r, 2000));
   }
 
   // Log discovery run
   await prisma.discoveryLog.create({
     data: {
       platform: "reddit",
-      query: `${SUBREDDITS.length} subs × ${SEARCH_QUERIES.length} queries + new feeds + cross-reddit`,
+      query: `${SUBREDDITS.length} subs new + ${searchSubs.length}×${selectedQueries.length} search + ${crossRedditQueries.length} cross`,
       resultsFound: totalFound,
       prospectsCreated: totalCreated,
     },
@@ -164,15 +202,24 @@ export async function GET(req: NextRequest) {
     success: true,
     found: totalFound,
     created: totalCreated,
+    statusCodes,
     errors: errors.length > 0 ? errors : undefined,
   });
 }
 
-async function processPost(post: RedditPost, subreddit: string): Promise<boolean> {
+async function processPost(
+  post: RedditPost,
+  subreddit: string
+): Promise<boolean> {
   const { author, title, selftext, permalink } = post.data;
 
   // Skip deleted/removed/bot authors
-  if (!author || author === "[deleted]" || author === "AutoModerator" || author === "[removed]") {
+  if (
+    !author ||
+    author === "[deleted]" ||
+    author === "AutoModerator" ||
+    author === "[removed]"
+  ) {
     return false;
   }
 
@@ -188,8 +235,12 @@ async function processPost(post: RedditPost, subreddit: string): Promise<boolean
   if (fullContent.length < 30) return false;
 
   const hasOnlyFansLink = /onlyfans\.com/.test(fullContent);
-  const mentionsEarnings = /\$\d+|\d+k|\bearning|\brevenue\b/i.test(fullContent);
-  const mentionsManagement = /\b(management|manager|agency)\b/i.test(fullContent);
+  const mentionsEarnings = /\$\d+|\d+k|\bearning|\brevenue\b/i.test(
+    fullContent
+  );
+  const mentionsManagement = /\b(management|manager|agency)\b/i.test(
+    fullContent
+  );
 
   const score = scoreProspect({
     postContent: fullContent,
